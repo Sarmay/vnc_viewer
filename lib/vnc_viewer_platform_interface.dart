@@ -1,0 +1,50 @@
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+
+import 'vnc_viewer_method_channel.dart';
+
+abstract class VncViewerPlatform extends PlatformInterface {
+  /// Constructs a VncViewerPlatform.
+  VncViewerPlatform() : super(token: _token);
+
+  static final Object _token = Object();
+
+  static VncViewerPlatform _instance = MethodChannelVncViewer();
+
+  /// The default instance of [VncViewerPlatform] to use.
+  ///
+  /// Defaults to [MethodChannelVncViewer].
+  static VncViewerPlatform get instance => _instance;
+
+  /// Platform-specific implementations should set this with their own
+  /// platform-specific class that extends [VncViewerPlatform] when
+  /// they register themselves.
+  static set instance(VncViewerPlatform instance) {
+    PlatformInterface.verifyToken(instance, _token);
+    _instance = instance;
+  }
+
+  Future<String?> getPlatformVersion() {
+    throw UnimplementedError('platformVersion() has not been implemented.');
+  }
+
+  Future<int?> initVncClient(String hostName, int port, String password) {
+    throw UnimplementedError('initVncClient() has not been implemented.');
+  }
+
+  void closeVncClient(int clientId) {
+    throw UnimplementedError('closeVncClient() has not been implemented.');
+  }
+
+  void startVncClient(int clientId) {
+    throw UnimplementedError('startVncClient() has not been implemented.');
+  }
+
+  void sendPointer(int clientId, int x, int y, int mask) {
+    throw UnimplementedError('sendPointer() has not been implemented.');
+  }
+
+  // Add a method channel to send key events
+  void sendKey(int clientId, int key, bool down) {
+    throw UnimplementedError('sendKey() has not been implemented.');
+  }
+}
