@@ -1,3 +1,7 @@
+## 0.0.2
+
+* 兼容 3.19
+
 ## 0.0.1
 
-* TODO: Describe initial release.
+* 初始化

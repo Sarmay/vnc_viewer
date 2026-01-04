@@ -1,5 +1,5 @@
-group = "com.sarmay.vnc_viewer"
-version = "1.0"
+group 'com.sarmay.vnc_viewer'
+version '1.0'
 
 buildscript {
     repositories {
@@ -8,7 +8,7 @@ buildscript {
     }
 
     dependencies {
-        classpath("com.android.tools.build:gradle:8.9.1")
+        classpath 'com.android.tools.build:gradle:7.3.0'
     }
 }
 
@@ -19,20 +19,22 @@ rootProject.allprojects {
     }
 }
 
-apply plugin: "com.android.library"
+apply plugin: 'com.android.library'
 
 android {
-    namespace = "com.sarmay.vnc_viewer"
+    if (project.android.hasProperty("namespace")) {
+        namespace 'com.sarmay.vnc_viewer'
+    }
 
-    compileSdk = 36
+    compileSdk 34
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 
     defaultConfig {
-        minSdk = 24
+        minSdkVersion 19
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
         externalNativeBuild {
@@ -63,8 +65,8 @@ android {
     }
 
     dependencies {
-        testImplementation("junit:junit:4.13.2")
-        testImplementation("org.mockito:mockito-core:5.0.0")
+        testImplementation 'junit:junit:4.13.2'
+        testImplementation 'org.mockito:mockito-core:5.0.0'
     }
 
     testOptions {
