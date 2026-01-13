@@ -10,8 +10,9 @@ class VncViewerWidget extends StatefulWidget {
   final String hostName;
   final String password;
   final int port;
-  final VoidCallback? onStart;
-  final VoidCallback? onClose;
+  final Function(int clientId)? onStart;
+  final Function(int clientId)? onClose;
+  final VoidCallback? onImageResize;
   final Function(String msg)? onError;
 
   const VncViewerWidget({
@@ -22,6 +23,7 @@ class VncViewerWidget extends StatefulWidget {
     this.onStart,
     this.onClose,
     this.onError,
+    this.onImageResize,
   });
 
   @override
@@ -64,66 +66,75 @@ class _VncViewerWidgetState extends State<VncViewerWidget>
     WidgetsBinding.instance.addObserver(this);
     BuildContext curContext = context;
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-      _clientId =
-          await _libvncviewerFlutterPlugin.initVncClient(
+      _clientId = await _libvncviewerFlutterPlugin.initVncClient(
             widget.hostName,
             widget.port,
             widget.password,
           ) ??
           0;
       if (_clientId != 0) {
-        _streamSubscription = _channel
-            .receiveBroadcastStream({"clientId": _clientId})
-            .listen(
-              (dynamic event) {
-                Map data = event;
-                String flag = data["flag"];
-                print("flag:$flag");
-                if (flag == "imageResize") {
-                  _imageWidth = data["width"];
-                  _imageHeight = data["height"];
-                  _textureId = data["textureId"];
-                  _streamController.add(1);
+        _streamSubscription =
+            _channel.receiveBroadcastStream({"clientId": _clientId}).listen(
+          (dynamic event) {
+            Map data = event;
+            String flag = data["flag"];
+            if (flag == "imageResize") {
+              _imageWidth = data["width"];
+              _imageHeight = data["height"];
+              _textureId = data["textureId"];
+              _streamController.add(1);
+              if (widget.onImageResize != null) {
+                widget.onImageResize!();
+              }
+            }
+            if (flag == "onReady") {
+              _libvncviewerFlutterPlugin.startVncClient(_clientId);
+              if (widget.onStart != null) {
+                widget.onStart!(_clientId);
+              }
+            }
+            if (flag == "onClose") {
+              if (widget.onClose != null) {
+                widget.onClose!(_clientId);
+              }
+            }
+            if (flag == "onError") {
+              String errMsg = data["msg"];
+              if (widget.onError != null) {
+                widget.onError!(errMsg);
+              } else {
+                if (curContext.mounted) {
+                  showCupertinoModalPopup<void>(
+                    context: curContext,
+                    builder: (BuildContext context) {
+                      return CupertinoAlertDialog(
+                        title: const Text('错误提示'),
+                        content: Text(errMsg),
+                        actions: <CupertinoDialogAction>[
+                          CupertinoDialogAction(
+                            isDestructiveAction: true,
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.pop(context);
+                            },
+                            child: const Text('关闭'),
+                          ),
+                        ],
+                      );
+                    },
+                  );
                 }
-                if (flag == "onReady") {
-                  widget.onStart?.call();
-                  _libvncviewerFlutterPlugin.startVncClient(_clientId);
-                }
-                if (flag == "onClose") {
-                  widget.onClose?.call();
-                }
-                if (flag == "onError") {
-                  String errMsg = data["msg"];
-                  widget.onError?.call(errMsg);
-                  if (curContext.mounted) {
-                    showCupertinoModalPopup<void>(
-                      context: curContext,
-                      builder: (BuildContext context) {
-                        return CupertinoAlertDialog(
-                          title: const Text('错误提示'),
-                          content: Text(errMsg),
-                          actions: <CupertinoDialogAction>[
-                            CupertinoDialogAction(
-                              isDestructiveAction: true,
-                              onPressed: () {
-                                Navigator.pop(context);
-                                Navigator.pop(context);
-                              },
-                              child: const Text('关闭'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  }
-                }
-              },
-              onError: (dynamic error) {
-                print('Received error: ${error.message}');
-                widget.onError?.call(error.message);
-              },
-              cancelOnError: true,
-            );
+              }
+            }
+          },
+          onError: (dynamic error) {
+            print('Received error: ${error.message}');
+            if (widget.onError != null) {
+              widget.onError!(error.message);
+            }
+          },
+          cancelOnError: true,
+        );
       }
     });
   }
@@ -171,9 +182,8 @@ class _VncViewerWidgetState extends State<VncViewerWidget>
           double horizontalScale = _width / _imageWidth;
           double verticalScale = _height / _imageHeight;
           // 选择较小的缩放比例，以确保图片可以完全显示在屏幕上
-          _scale = horizontalScale < verticalScale
-              ? horizontalScale
-              : verticalScale;
+          _scale =
+              horizontalScale < verticalScale ? horizontalScale : verticalScale;
           _width = _imageWidth * _scale;
           _height = _imageHeight * _scale;
           content = Container(
@@ -217,6 +227,8 @@ class _VncViewerWidgetState extends State<VncViewerWidget>
     _streamSubscription!.cancel();
     _libvncviewerFlutterPlugin.closeVncClient(_clientId);
     WidgetsBinding.instance.removeObserver(this);
-    widget.onClose?.call();
+    if (widget.onClose != null) {
+      widget.onClose!(_clientId);
+    }
   }
 }

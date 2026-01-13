@@ -1,69 +1,53 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'dart:async';
-
-import 'package:flutter/services.dart';
-import 'package:vnc_viewer/vnc_viewer_handel.dart';
-import 'package:vnc_viewer/vnc_viewer_widget.dart';
+import 'package:vnc_viewer_example/viewer.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget { // 改为 StatelessWidget 更合适（无状态根组件）
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  final _vncViewerPlugin = VncViewerHandel();
-
-  @override
-  void initState() {
-    super.initState();
-    initPlatformState();
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  Future<void> initPlatformState() async {
-    String platformVersion;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-    // We also handle the message potentially returning null.
-    try {
-      platformVersion =
-          await _vncViewerPlugin.getPlatformVersion() ??
-              'Unknown platform version';
-    } on PlatformException {
-      platformVersion = 'Failed to get platform version.';
-    }
-
-    print("platformVersion:$platformVersion");
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(debugShowCheckedModeBanner: false, home: AppPage());
+    return MaterialApp(
+      title: 'Flutter Demo',
+      showSemanticsDebugger: false,
+      theme: ThemeData(
+        primaryColor: Colors.blue,
+        primarySwatch: Colors.blue,
+      ),
+      // 将主页内容抽离为独立组件，使用新的上下文
+      home: const HomePage(),
+    );
   }
 }
 
-class AppPage extends StatelessWidget {
-  TextEditingController _hostNameEditingController = new TextEditingController()
-    ..text = "192.168.137.178";
+// 独立的主页组件，内部上下文可访问 Navigator
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
-  TextEditingController _portEditingController = new TextEditingController()
-    ..text = "5900";
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
 
-  TextEditingController _passwordEditingController = new TextEditingController()
-    ..text = "Admin";
+class _HomePageState extends State<HomePage> {
+  final TextEditingController _hostNameEditingController =
+  TextEditingController(text: "192.168.137.178");
+
+  final TextEditingController _portEditingController =
+  TextEditingController(text: "5900");
+
+  final TextEditingController _passwordEditingController =
+  TextEditingController(text: "Xjjt@123");
 
   @override
   Widget build(BuildContext context) {
+    // 这里的 context 是 HomePage 的上下文，属于 Navigator 后代，可正常导航
     return Scaffold(
-      appBar: AppBar(title: const Text('LibVncViewer example app')),
+      appBar: AppBar(title: const Text('VncViewer app')),
       body: Container(
-        margin: EdgeInsets.all(10),
+        margin: const EdgeInsets.all(16),
         child: Center(
           child: Column(
             children: [
@@ -97,32 +81,27 @@ class AppPage extends StatelessWidget {
                   return null;
                 },
               ),
-              Text(""),
-              CupertinoButton.filled(
+              const SizedBox(
+                height: 16,
+              ),
+              MaterialButton(
                 onPressed: () {
                   String hostName = _hostNameEditingController.text;
                   String port = _portEditingController.text;
                   String password = _passwordEditingController.text;
+                  // 现在使用的是 HomePage 的 context，可正常找到 Navigator
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) {
-                        return Column(
-                          children: [
-                            AspectRatio(
-                              aspectRatio: 16 / 9,
-                              child: VncViewerWidget(
-                                hostName: hostName,
-                                password: password,
-                                port: int.parse(port),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                      builder: (contextC) => ExampleViewer(
+                        hostName: hostName,
+                        password: password,
+                        port: port,
+                      ),
                     ),
                   );
                 },
+                color: Colors.blue,
                 child: const Text('open vnc viewer'),
               ),
             ],
@@ -130,5 +109,14 @@ class AppPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // 优化：释放控制器资源（避免内存泄漏）
+  @override
+  void dispose() {
+    _hostNameEditingController.dispose();
+    _portEditingController.dispose();
+    _passwordEditingController.dispose();
+    super.dispose();
   }
 }

@@ -36,7 +36,7 @@ public class VncViewerPlugin implements FlutterPlugin, MethodCallHandler {
 
     private Map<Long, EventChannel.EventSink> eventSinkMap = new HashMap<>();
 
-    private Integer removeSinkLock = 0;
+    private final Object removeSinkLock = new Object();
 
     private Handler handler = new Handler(Looper.getMainLooper());
 
@@ -53,26 +53,43 @@ public class VncViewerPlugin implements FlutterPlugin, MethodCallHandler {
 
             @Override
             public void onListen(Object arguments, EventChannel.EventSink events) {
-                if (arguments instanceof HashMap) {
-                    Map args = (Map) arguments;
-                    String clientId = args.get("clientId").toString();
-                    eventSinkMap.put(Long.valueOf(clientId), events);
-                    Map respData = new HashMap();
-                    respData.put("flag", "onReady");
-                    events.success(respData);
+                if (arguments instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> args = (Map<String, Object>) arguments;
+                    Object clientIdObj = args.get("clientId");
+                    if (clientIdObj != null) {
+                        String clientIdStr = clientIdObj.toString();
+                        try {
+                            long clientId = Long.parseLong(clientIdStr);
+                            eventSinkMap.put(clientId, events);
+                            Map<String, Object> respData = new HashMap<>();
+                            respData.put("flag", "onReady");
+                            events.success(respData);
+                        } catch (NumberFormatException e) {
+                            events.error("INVALID_CLIENT_ID", "Invalid client ID format: " + clientIdStr, e);
+                        }
+                    }
                 }
             }
 
             @Override
             public void onCancel(Object arguments) {
-                if (arguments instanceof HashMap) {
-                    Map args = (Map) arguments;
-                    String clientId = args.get("clientId").toString();
-                    synchronized (removeSinkLock) {
-                        eventSinkMap.remove(Long.valueOf(clientId));
+                if (arguments instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> args = (Map<String, Object>) arguments;
+                    Object clientIdObj = args.get("clientId");
+                    if (clientIdObj != null) {
+                        String clientIdStr = clientIdObj.toString();
+                        try {
+                            long clientId = Long.parseLong(clientIdStr);
+                            synchronized (removeSinkLock) {
+                                eventSinkMap.remove(clientId);
+                            }
+                        } catch (NumberFormatException e) {
+                            // Handle invalid client ID silently or log if needed
+                        }
                     }
                 }
-
             }
         });
     }
@@ -83,77 +100,112 @@ public class VncViewerPlugin implements FlutterPlugin, MethodCallHandler {
         if (call.method.equals("getPlatformVersion")) {
             result.success("Android " + android.os.Build.VERSION.RELEASE);
         } else if (call.method.equals("closeVncClient")) {
-            long clientId = call.argument("clientId");
-            new VncClient().closeRfbClient(clientId);
+            @SuppressWarnings("unchecked")
+            Long clientId = (Long) call.argument("clientId");
+            if (clientId != null) {
+                new VncClient().closeRfbClient(clientId);
+            }
         } else if (call.method.equals("startVncClient")) {
-            long clientId = call.argument("clientId");
-            new VncClient().startRfbClient(clientId);
+            @SuppressWarnings("unchecked")
+            Long clientId = (Long) call.argument("clientId");
+            if (clientId != null) {
+                new VncClient().startRfbClient(clientId);
+            }
         } else if (call.method.equals("sendPointer")) {
-            long clientId = call.argument("clientId");
-            int x = call.argument("x");
-            int y = call.argument("y");
-            int mask = call.argument("mask");
-            new VncClient().sendPointer(clientId, x, y, mask);
+            @SuppressWarnings("unchecked")
+            Long clientId = (Long) call.argument("clientId");
+            @SuppressWarnings("unchecked")
+            Integer x = (Integer) call.argument("x");
+            @SuppressWarnings("unchecked")
+            Integer y = (Integer) call.argument("y");
+            @SuppressWarnings("unchecked")
+            Integer mask = (Integer) call.argument("mask");
+            if (clientId != null && x != null && y != null && mask != null) {
+                new VncClient().sendPointer(clientId, x, y, mask);
+            }
         } else if (call.method.equals("sendKey")) {
-            long clientId = call.argument("clientId");
-            int key = call.argument("key");
-            boolean down = call.argument("down");
-            new VncClient().sendKeyEvent(clientId, key, down);
+            @SuppressWarnings("unchecked")
+            Long clientId = (Long) call.argument("clientId");
+            @SuppressWarnings("unchecked")
+            Integer key = (Integer) call.argument("key");
+            @SuppressWarnings("unchecked")
+            Boolean down = (Boolean) call.argument("down");
+            if (clientId != null && key != null && down != null) {
+                new VncClient().sendKeyEvent(clientId, key, down);
+            }
         } else if (call.method.equals("initVncClient")) {
             TextureRegistry.SurfaceTextureEntry surfaceTextureEntry = flutterPluginBinding.getTextureRegistry()
                     .createSurfaceTexture();
             SurfaceTexture surfaceTexture = surfaceTextureEntry.surfaceTexture();
             Surface surface = new Surface(surfaceTexture);
-            String hostName = call.argument("hostName");
-            int port = call.argument("port");
-            String password = call.argument("password");
-            long clientId = new VncClient().rfbInitClient(hostName, port, password, surface, new RfbClientCallBack() {
-                @Override
-                public void onError(long clientId, int code, String msg) {
-                    Map respData = new HashMap();
-                    respData.put("flag", "onError");
-                    respData.put("code", code);
-                    respData.put("msg", msg);
-                    handler.post(() -> {
-                        EventChannel.EventSink sink = eventSinkMap.get(clientId);
-                        if (sink != null) {
-                            sink.success(respData);
-                        }
-                    });
-                }
+            
+            @SuppressWarnings("unchecked")
+            String hostName = (String) call.argument("hostName");
+            @SuppressWarnings("unchecked")
+            Integer port = (Integer) call.argument("port");
+            @SuppressWarnings("unchecked")
+            String password = (String) call.argument("password");
+            
+            if (hostName != null && port != null) {
+                long clientId = new VncClient().rfbInitClient(hostName, port, password, surface, new RfbClientCallBack() {
+                    @Override
+                    public void onError(long clientId, int code, String msg) {
+                        Map<String, Object> respData = new HashMap<>();
+                        respData.put("flag", "onError");
+                        respData.put("code", code);
+                        respData.put("msg", msg);
+                        handler.post(() -> {
+                            EventChannel.EventSink sink = eventSinkMap.get(clientId);
+                            if (sink != null) {
+                                sink.success(respData);
+                            }
+                        });
+                    }
 
-                @Override
-                public void onClosed(long clientId) {
-                    surface.release();
-                    surfaceTexture.release();
-                    surfaceTextureEntry.release();
-                }
+                    @Override
+                    public void onClosed(long clientId) {
+                        Map<String, Object> respData = new HashMap<>();
+                        respData.put("flag", "onClose");
+                        handler.post(() -> {
+                            EventChannel.EventSink sink = eventSinkMap.get(clientId);
+                            if (sink != null) {
+                                sink.success(respData);
+                                synchronized (removeSinkLock) {
+                                    eventSinkMap.remove(clientId);
+                                }
+                            }
+                        });
+                        surface.release();
+                        surfaceTexture.release();
+                        surfaceTextureEntry.release();
+                    }
 
-                @Override
-                public void onConnectSuccess(long clientId, int width, int height) {
-                }
+                    @Override
+                    public void onConnectSuccess(long clientId, int width, int height) {
+                    }
 
-                @Override
-                public void onFrameUpdate(long clientId, byte[] datas, int width, int height) {
-                }
+                    @Override
+                    public void onFrameUpdate(long clientId, byte[] datas, int width, int height) {
+                    }
 
-                @Override
-                public void imageResize(long clientId, int width, int height) {
-                    long textureId = surfaceTextureEntry.id();
-                    Map respData = new HashMap();
-                    respData.put("flag", "imageResize");
-                    respData.put("width", width);
-                    respData.put("height", height);
-                    respData.put("textureId", textureId);
-                    handler.post(() -> {
-                        EventChannel.EventSink sink = eventSinkMap.get(clientId);
-                        if (sink != null) {
-                            sink.success(respData);
-                        }
-                    });
-                }
-            });
-            result.success(clientId);
+                    @Override
+                    public void imageResize(long clientId, int width, int height) {
+                        long textureId = surfaceTextureEntry.id();
+                        Map<String, Object> respData = new HashMap<>();
+                        respData.put("flag", "imageResize");
+                        respData.put("width", width);
+                        respData.put("height", height);
+                        respData.put("textureId", textureId);
+                        handler.post(() -> {
+                            EventChannel.EventSink sink = eventSinkMap.get(clientId);
+                            if (sink != null) {
+                                sink.success(respData);
+                            }
+                        });
+                    }
+                });
+                result.success(clientId);
+            }
         } else {
             result.notImplemented();
         }
