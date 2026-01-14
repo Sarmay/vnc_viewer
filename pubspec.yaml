@@ -1,6 +1,6 @@
 name: vnc_viewer
 description: "一个VNC客户端"
-version: 0.0.3
+version: 0.0.4
 homepage: https://github.com/Sarmay/vnc_viewer
 repository: https://github.com/Sarmay/vnc_viewer
 

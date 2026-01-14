@@ -5,6 +5,15 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Surface;
+import android.os.Environment;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
@@ -46,6 +55,10 @@ public class VncViewerPlugin implements FlutterPlugin, MethodCallHandler {
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
         this.flutterPluginBinding = flutterPluginBinding;
+        
+        // 注册Android原生崩溃处理器
+        registerNativeCrashHandler();
+        
         channel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "libvncviewer_flutter");
         channel.setMethodCallHandler(this);
         eventChannel = new EventChannel(flutterPluginBinding.getBinaryMessenger(), "libvncviewer_flutter_eventchannel");
@@ -214,5 +227,78 @@ public class VncViewerPlugin implements FlutterPlugin, MethodCallHandler {
     @Override
     public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
         channel.setMethodCallHandler(null);
+    }
+    
+    // 注册Android原生崩溃处理器
+    private void registerNativeCrashHandler() {
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                // 保存崩溃日志
+                saveNativeCrashLog(thread, throwable);
+                
+                // 让系统默认的处理器继续处理（可以选择不调用，这样应用就不会退出）
+                if (Thread.getDefaultUncaughtExceptionHandler() != this) {
+                    Thread.getDefaultUncaughtExceptionHandler().uncaughtException(thread, throwable);
+                }
+            }
+        });
+    }
+    
+    // 保存Android原生崩溃日志
+    private void saveNativeCrashLog(Thread thread, Throwable throwable) {
+        try {
+            // 获取应用外部存储目录
+            File externalDir = Environment.getExternalStorageDirectory();
+            File logDir = new File(externalDir, "vnc_viewer_crash_logs");
+            
+            // 创建日志目录
+            if (!logDir.exists()) {
+                logDir.mkdirs();
+            }
+            
+            // 格式化时间戳
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+            String timestamp = dateFormat.format(new Date());
+            
+            // 创建日志文件
+            File logFile = new File(logDir, "crash_" + timestamp + ".txt");
+            
+            // 写入崩溃信息
+            FileWriter writer = new FileWriter(logFile, true);
+            
+            // 写入基本信息
+            writer.write("=== Android Native Crash ===\n");
+            writer.write("Timestamp: " + timestamp + "\n");
+            writer.write("Thread: " + thread.getName() + " (" + thread.getId() + ")\n");
+            writer.write("Exception: " + throwable.getClass().getName() + "\n");
+            writer.write("Message: " + throwable.getMessage() + "\n");
+            writer.write("\nStack Trace:\n");
+            
+            // 写入堆栈跟踪
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            throwable.printStackTrace(pw);
+            writer.write(sw.toString());
+            
+            // 写入cause（如果有）
+            Throwable cause = throwable.getCause();
+            if (cause != null) {
+                writer.write("\nCaused by:\n");
+                writer.write("Exception: " + cause.getClass().getName() + "\n");
+                writer.write("Message: " + cause.getMessage() + "\n");
+                writer.write("Stack Trace:\n");
+                sw = new StringWriter();
+                pw = new PrintWriter(sw);
+                cause.printStackTrace(pw);
+                writer.write(sw.toString());
+            }
+            
+            writer.write("\n==========================\n\n");
+            writer.close();
+            
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
